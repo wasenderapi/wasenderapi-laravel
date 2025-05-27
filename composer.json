@@ -1,6 +1,6 @@
 {
     "name": "wasenderapi/wasenderapi-laravel",
-    "description": "Laravel SDK for WasenderAPI (identical to Python SDK, with event dispatching and webhook route)",
+    "description": "Laravel SDK for WasenderAPI  with event dispatching and webhook route",
     "type": "library",
     "license": "MIT",
     "require": {
