@@ -542,7 +542,7 @@ class WasenderClient
     protected function request(string $method, string $path, ?array $payload = null, bool $usePersonalToken = false): array
     {
         if ($usePersonalToken && empty($this->personalAccessToken)) {
-            throw new WasenderApiException('Personal access token is required when usePersonalAccessToken is true');
+            throw new WasenderApiException('this endpoint requires a personal access token');
         }
         $url = $this->baseUrl . $path;
         $headers = [
