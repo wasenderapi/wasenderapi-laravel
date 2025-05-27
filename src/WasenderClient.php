@@ -541,6 +541,9 @@ class WasenderClient
     }
     protected function request(string $method, string $path, ?array $payload = null, bool $usePersonalToken = false): array
     {
+        if ($usePersonalToken && empty($this->personalAccessToken)) {
+            throw new WasenderApiException('Personal access token is required when usePersonalAccessToken is true');
+        }
         $url = $this->baseUrl . $path;
         $headers = [
             'Accept' => 'application/json',
