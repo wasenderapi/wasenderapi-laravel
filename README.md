@@ -58,6 +58,8 @@ public function send(WasenderClient $client) {
 }
 ```
 
+
+
 ### Facade Usage
 
 ```php
@@ -65,6 +67,19 @@ use WasenderApi\Facades\WasenderApi;
 
 WasenderApi::sendText('1234567890', 'Hello via Facade!');
 ```
+
+
+#### Direct Instantiation
+
+Another way to use the client is by creating a new instance of the `WasenderClient` class directly and providing your API key as an argument:
+
+```php
+$client = new WasenderClient('your_api_key_here');
+```
+
+This method is particularly powerful and becomes the recommended approach when your application needs to manage multiple sessions.
+Each session you create in your Wasender dashboard has a unique API key. Direct instantiation allows you to dynamically select and use the specific API key for the session you want to communicate with at runtime. This is essential for applications that send messages from different WhatsApp numbers.
+This approach is also the standard method for using the library in contexts outside of the Laravel framework or in situations where Laravel's service container is not readily available. To get started, you'll need a WasenderAPI account to obtain the unique API key for each of your sessions.
 
 ### DTO Usage
 
