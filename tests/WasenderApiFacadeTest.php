@@ -104,6 +104,19 @@ test('sendMessageWithMentions via Facade returns success', function () {
     expect($result['message'])->toBe('Mention sent');
 });
 
+test('sendQuotedMessage via Facade returns success', function () {
+    Http::fake([
+        'https://www.wasenderapi.com/api/send-message' => Http::response(['success' => true, 'message' => 'Quoted sent'], 200),
+    ]);
+    $result = WasenderApi::sendQuotedMessage('123', 42, 'Hello', ['imageUrl' => 'https://img']);
+    expect($result['success'])->toBeTrue();
+    expect($result['message'])->toBe('Quoted sent');
+});
+
+test('sendQuotedMessage throws on invalid reply id', function () {
+    WasenderApi::sendQuotedMessage('123', 0, 'Hello');
+})->throws(InvalidArgumentException::class);
+
 test('sendLocation via Facade returns success', function () {
     Http::fake([
         'https://www.wasenderapi.com/api/send-message' => Http::response(['success' => true, 'message' => 'Location sent'], 200),
@@ -156,6 +169,24 @@ test('unblockContact returns success', function () {
     $result = WasenderApi::unblockContact('123');
     expect($result['success'])->toBeTrue();
     expect($result['message'])->toBe('Unblocked');
+});
+
+test('checkIfOnWhatsapp returns status', function () {
+    Http::fake([
+        'https://www.wasenderapi.com/api/on-whatsapp/%2B1234567890' => Http::response(['success' => true, 'exists' => true], 200),
+    ]);
+    $result = WasenderApi::checkIfOnWhatsapp('+1234567890');
+    expect($result['success'])->toBeTrue();
+    expect($result['exists'])->toBeTrue();
+});
+
+test('createGroup returns success', function () {
+    Http::fake([
+        'https://www.wasenderapi.com/api/groups' => Http::response(['success' => true, 'id' => 'abc@g.us'], 200),
+    ]);
+    $result = WasenderApi::createGroup('My Group', ['u1@s.whatsapp.net']);
+    expect($result['success'])->toBeTrue();
+    expect($result['id'])->toBe('abc@g.us');
 });
 
 test('getGroups returns groups', function () {
@@ -351,6 +382,15 @@ test('uploadMediaFile from base64 returns success', function () {
     expect($result['id'])->toBe('media123');
 });
 
+test('decryptMediaFile returns decrypted payload', function () {
+    Http::fake([
+        'https://www.wasenderapi.com/api/decrypt-media' => Http::response(['success' => true, 'data' => ['foo' => 'bar']], 200),
+    ]);
+    $result = WasenderApi::decryptMediaFile(['message' => ['imageMessage' => []]]);
+    expect($result['success'])->toBeTrue();
+    expect($result['data'])->toBe(['foo' => 'bar']);
+});
+
 test('sendPresenceUpdate returns success', function () {
     Http::fake([
         'https://www.wasenderapi.com/api/send-presence-update' => Http::response(['success' => true, 'message' => 'Presence sent'], 200),
@@ -362,6 +402,45 @@ test('sendPresenceUpdate returns success', function () {
 
 test('sendPresenceUpdate throws on invalid type', function () {
     WasenderApi::sendPresenceUpdate('123@s.whatsapp.net', 'invalid');
+})->throws(InvalidArgumentException::class);
+
+test('editMessage returns success', function () {
+    Http::fake([
+        'https://www.wasenderapi.com/api/messages/123' => Http::response(['success' => true, 'message' => 'Edited'], 200),
+    ]);
+    $result = WasenderApi::editMessage(123, 'Updated text');
+    expect($result['success'])->toBeTrue();
+    expect($result['message'])->toBe('Edited');
+});
+
+test('editMessage throws on empty text', function () {
+    WasenderApi::editMessage(123, '');
+})->throws(InvalidArgumentException::class);
+
+test('deleteMessage returns success', function () {
+    Http::fake([
+        'https://www.wasenderapi.com/api/messages/123' => Http::response(['success' => true, 'message' => 'Deleted'], 200),
+    ]);
+    $result = WasenderApi::deleteMessage(123);
+    expect($result['success'])->toBeTrue();
+    expect($result['message'])->toBe('Deleted');
+});
+
+test('deleteMessage throws on invalid id', function () {
+    WasenderApi::deleteMessage(0);
+})->throws(InvalidArgumentException::class);
+
+test('getMessageInfo returns info', function () {
+    Http::fake([
+        'https://www.wasenderapi.com/api/messages/123/info' => Http::response(['success' => true, 'info' => []], 200),
+    ]);
+    $result = WasenderApi::getMessageInfo(123);
+    expect($result['success'])->toBeTrue();
+    expect($result['info'])->toBeArray();
+});
+
+test('getMessageInfo throws on invalid id', function () {
+    WasenderApi::getMessageInfo(0);
 })->throws(InvalidArgumentException::class);
 
 test('regenerateApiKey returns success', function () {
@@ -380,6 +459,15 @@ test('getSessionStatus returns status', function () {
     $result = WasenderApi::getSessionStatus('1');
     expect($result['success'])->toBeTrue();
     expect($result['status'])->toBe('CONNECTED');
+});
+
+test('getSessionUserInfo returns info', function () {
+    Http::fake([
+        'https://www.wasenderapi.com/api/user' => Http::response(['success' => true, 'user' => ['id' => 1]], 200),
+    ]);
+    $result = WasenderApi::getSessionUserInfo();
+    expect($result['success'])->toBeTrue();
+    expect($result['user'])->toBe(['id' => 1]);
 });
 
 test('webhook dispatches event', function () {

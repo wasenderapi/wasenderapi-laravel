@@ -89,6 +89,35 @@ class WasenderClient
     }
 
     /**
+     * Send a quoted message replying to an existing message.
+     *
+     * @param string $to
+     * @param int $replyTo
+     * @param string|null $text
+     * @param array $options
+     * @param RetryConfig|null $retryConfig
+     * @return array
+     * @throws WasenderApiException
+     */
+    public function sendQuotedMessage(string $to, int $replyTo, ?string $text = null, array $options = [], ?RetryConfig $retryConfig = null): array
+    {
+        if ($replyTo <= 0) {
+            throw new InvalidArgumentException('replyTo must be a positive message identifier.');
+        }
+
+        $payload = array_merge($options, [
+            'to' => $to,
+            'replyTo' => $replyTo,
+        ]);
+
+        if ($text !== null) {
+            $payload['text'] = $text;
+        }
+
+        return $this->postWithRetry('/send-message', $payload, false, $retryConfig);
+    }
+
+    /**
      * Send an image message.
      *
      * @param string|SendImageMessageData $to
@@ -101,7 +130,7 @@ class WasenderClient
      */
     public function sendImage($to, $url = null, ?string $caption = null, array $options = [], ?RetryConfig $retryConfig = null): array
     {
-    if ($to instanceof SendImageMessageData) {
+        if ($to instanceof SendImageMessageData) {
             $payload = [
                 'to' => $to->to,
                 'imageUrl' => $to->imageUrl,
@@ -131,7 +160,7 @@ class WasenderClient
      */
     public function sendVideo($to, $url = null, ?string $caption = null, array $options = [], ?RetryConfig $retryConfig = null): array
     {
-    if ($to instanceof SendVideoMessageData) {
+        if ($to instanceof SendVideoMessageData) {
             $payload = [
                 'to' => $to->to,
                 'videoUrl' => $to->videoUrl,
@@ -162,7 +191,7 @@ class WasenderClient
      */
     public function sendDocument($to, $url = null, ?string $caption = null, ?string $fileName = null, array $options = [], ?RetryConfig $retryConfig = null): array
     {
-    if ($to instanceof SendDocumentMessageData) {
+        if ($to instanceof SendDocumentMessageData) {
             $payload = [
                 'to' => $to->to,
                 'documentUrl' => $to->documentUrl,
@@ -193,7 +222,7 @@ class WasenderClient
      */
     public function sendAudio($to, $url = null, array $options = [], ?RetryConfig $retryConfig = null): array
     {
-    if ($to instanceof SendAudioMessageData) {
+        if ($to instanceof SendAudioMessageData) {
             $payload = [
                 'to' => $to->to,
                 'audioUrl' => $to->audioUrl,
@@ -220,7 +249,7 @@ class WasenderClient
      */
     public function sendSticker($to, $url = null, array $options = [], ?RetryConfig $retryConfig = null): array
     {
-    if ($to instanceof SendStickerMessageData) {
+        if ($to instanceof SendStickerMessageData) {
             $payload = [
                 'to' => $to->to,
                 'stickerUrl' => $to->stickerUrl,
@@ -248,7 +277,7 @@ class WasenderClient
      */
     public function sendContact($to, $contactName = null, $contactPhone = null, array $options = [], ?RetryConfig $retryConfig = null): array
     {
-    if ($to instanceof SendContactMessageData) {
+        if ($to instanceof SendContactMessageData) {
             $payload = [
                 'to' => $to->to,
                 'contact' => [
@@ -284,7 +313,7 @@ class WasenderClient
      */
     public function sendLocation($to, $latitude = null, $longitude = null, ?string $name = null, ?string $address = null, array $options = [], ?RetryConfig $retryConfig = null): array
     {
-    if ($to instanceof SendLocationMessageData) {
+        if ($to instanceof SendLocationMessageData) {
             $location = [
                 'latitude' => $to->latitude,
                 'longitude' => $to->longitude,
@@ -369,7 +398,42 @@ class WasenderClient
         return $this->post("/contacts/{$phone}/unblock");
     }
 
+    /**
+     * Check if a phone number is registered on WhatsApp.
+     *
+     * @param string $phoneNumber
+     * @return array
+     * @throws WasenderApiException
+     */
+    public function checkIfOnWhatsapp(string $phoneNumber): array
+    {
+        $encoded = rawurlencode($phoneNumber);
+        return $this->get("/on-whatsapp/{$encoded}");
+    }
+
     // Groups
+    /**
+     * Create a new group.
+     *
+     * @param string $name
+     * @param array $participants
+     * @return array
+     * @throws WasenderApiException
+     */
+    public function createGroup(string $name, array $participants = []): array
+    {
+        if ($name === '') {
+            throw new InvalidArgumentException('Group name cannot be empty.');
+        }
+
+        $payload = ['name' => $name];
+        if (!empty($participants)) {
+            $payload['participants'] = array_values($participants);
+        }
+
+        return $this->post('/groups', $payload);
+    }
+
     /**
      * Get all groups.
      *
@@ -586,6 +650,22 @@ class WasenderClient
     }
 
     /**
+     * Decrypt a media file payload returned by Wasender.
+     *
+     * @param array $data
+     * @return array
+     * @throws WasenderApiException
+     */
+    public function decryptMediaFile(array $data): array
+    {
+        if (empty($data)) {
+            throw new InvalidArgumentException('Decrypt media payload cannot be empty.');
+        }
+
+        return $this->post('/decrypt-media', ['data' => $data]);
+    }
+
+    /**
      * Send a presence update for a given JID.
      *
      * @param string $jid
@@ -616,7 +696,71 @@ class WasenderClient
         return $this->post('/send-presence-update', $payload);
     }
 
+    // Messages
+    /**
+     * Edit an existing message's text content.
+     *
+     * @param int $messageId
+     * @param string $text
+     * @return array
+     * @throws WasenderApiException
+     */
+    public function editMessage(int $messageId, string $text): array
+    {
+        if ($messageId <= 0) {
+            throw new InvalidArgumentException('Message id must be positive.');
+        }
+        if ($text === '') {
+            throw new InvalidArgumentException('Message text cannot be empty.');
+        }
+
+        return $this->put("/messages/{$messageId}", ['text' => $text]);
+    }
+
+    /**
+     * Delete a previously sent message.
+     *
+     * @param int $messageId
+     * @return array
+     * @throws WasenderApiException
+     */
+    public function deleteMessage(int $messageId): array
+    {
+        if ($messageId <= 0) {
+            throw new InvalidArgumentException('Message id must be positive.');
+        }
+
+        return $this->delete("/messages/{$messageId}");
+    }
+
+    /**
+     * Retrieve detailed information for a message.
+     *
+     * @param int $messageId
+     * @return array
+     * @throws WasenderApiException
+     */
+    public function getMessageInfo(int $messageId): array
+    {
+        if ($messageId <= 0) {
+            throw new InvalidArgumentException('Message id must be positive.');
+        }
+
+        return $this->get("/messages/{$messageId}/info");
+    }
+
     // Sessions
+    /**
+     * Retrieve information about the authenticated session user.
+     *
+     * @return array
+     * @throws WasenderApiException
+     */
+    public function getSessionUserInfo(): array
+    {
+        return $this->get('/user', false);
+    }
+
     /**
      * Get all WhatsApp sessions.
      *
