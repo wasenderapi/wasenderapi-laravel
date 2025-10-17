@@ -41,10 +41,10 @@ class WebhookController extends Controller
             'session.status' => \WasenderApi\Events\SessionStatus::class,
             'qrcode.updated' => \WasenderApi\Events\QrCodeUpdated::class,
             'call.received' => \WasenderApi\Events\CallReceived::class,
-            'message.personal.received' => \WasenderApi\Events\PersonalMessageReceived::class,
-            'message.newsletter.received' => \WasenderApi\Events\NewsletterMessageReceived::class,
-            'message.group.received' => \WasenderApi\Events\GroupMessageReceived::class,
-            'message.received' => \WasenderApi\Events\MessageReceived::class,
+            'messages-personal.received' => \WasenderApi\Events\PersonalMessageReceived::class,
+            'messages-newsletter.received' => \WasenderApi\Events\NewsletterMessageReceived::class,
+            'messages-group.received' => \WasenderApi\Events\GroupMessageReceived::class,
+            'messages.received' => \WasenderApi\Events\MessageReceived::class,
             'poll.results' => \WasenderApi\Events\PollResults::class,
         ];
         $eventType = $payload['event'];
