@@ -14,12 +14,15 @@ use WasenderApi\Data\SendStickerMessageData;
 use WasenderApi\Data\SendContactMessageData;
 use WasenderApi\Data\SendLocationMessageData;
 use WasenderApi\Events\MessagesUpserted;
+use WasenderApi\Events\CallReceived;
+use WasenderApi\Events\WasenderWebhookEvent;
 
 uses(\Orchestra\Testbench\TestCase::class);
 
 beforeEach(function () {
     $this->app->register(\WasenderApi\WasenderApiServiceProvider::class);
     Config::set('wasenderapi.api_key', 'testkey');
+    Config::set('wasenderapi.personal_access_token', 'testpat');
 });
 
 test('sendText via Facade returns success and message', function () {
@@ -90,6 +93,15 @@ test('sendContact via Facade returns success', function () {
     $result = WasenderApi::sendContact(new SendContactMessageData('123', 'John Doe', '+123456789'));
     expect($result['success'])->toBeTrue();
     expect($result['message'])->toBe('Contact sent');
+});
+
+test('sendMessageWithMentions via Facade returns success', function () {
+    Http::fake([
+        'https://www.wasenderapi.com/api/send-message' => Http::response(['success' => true, 'message' => 'Mention sent'], 200),
+    ]);
+    $result = WasenderApi::sendMessageWithMentions('123@g.us', 'Hello @user', ['123@s.whatsapp.net']);
+    expect($result['success'])->toBeTrue();
+    expect($result['message'])->toBe('Mention sent');
 });
 
 test('sendLocation via Facade returns success', function () {
@@ -191,6 +203,19 @@ test('removeGroupParticipants returns success', function () {
     expect($result['message'])->toBe('Removed');
 });
 
+test('updateGroupParticipants returns success', function () {
+    Http::fake([
+        'https://www.wasenderapi.com/api/groups/abc/participants/update' => Http::response(['success' => true, 'message' => 'Updated'], 200),
+    ]);
+    $result = WasenderApi::updateGroupParticipants('abc', 'promote', ['u1']);
+    expect($result['success'])->toBeTrue();
+    expect($result['message'])->toBe('Updated');
+});
+
+test('updateGroupParticipants throws on invalid action', function () {
+    WasenderApi::updateGroupParticipants('abc', 'invalid', ['u1']);
+})->throws(InvalidArgumentException::class);
+
 test('updateGroupSettings returns success', function () {
     Http::fake([
         'https://www.wasenderapi.com/api/groups/abc/settings' => Http::response(['success' => true, 'message' => 'Updated'], 200),
@@ -272,6 +297,73 @@ test('disconnectWhatsAppSession returns success', function () {
     expect($result['message'])->toBe('Disconnected');
 });
 
+test('getGroupInviteInfo returns info', function () {
+    Http::fake([
+        'https://www.wasenderapi.com/api/groups/invite/ABC123' => Http::response(['success' => true, 'info' => []], 200),
+    ]);
+    $result = WasenderApi::getGroupInviteInfo('ABC123');
+    expect($result['success'])->toBeTrue();
+    expect($result['info'])->toBeArray();
+});
+
+test('leaveGroup returns success', function () {
+    Http::fake([
+        'https://www.wasenderapi.com/api/groups/abc/leave' => Http::response(['success' => true, 'message' => 'Left'], 200),
+    ]);
+    $result = WasenderApi::leaveGroup('abc');
+    expect($result['success'])->toBeTrue();
+    expect($result['message'])->toBe('Left');
+});
+
+test('acceptGroupInvite returns success', function () {
+    Http::fake([
+        'https://www.wasenderapi.com/api/groups/invite/accept' => Http::response(['success' => true, 'message' => 'Accepted'], 200),
+    ]);
+    $result = WasenderApi::acceptGroupInvite('CODE123');
+    expect($result['success'])->toBeTrue();
+    expect($result['message'])->toBe('Accepted');
+});
+
+test('getGroupInviteLink returns link', function () {
+    Http::fake([
+        'https://www.wasenderapi.com/api/groups/abc/invite-link' => Http::response(['success' => true, 'link' => 'https://chat.whatsapp.com/xyz'], 200),
+    ]);
+    $result = WasenderApi::getGroupInviteLink('abc');
+    expect($result['success'])->toBeTrue();
+    expect($result['link'])->toBe('https://chat.whatsapp.com/xyz');
+});
+
+test('getGroupProfilePicture returns url', function () {
+    Http::fake([
+        'https://www.wasenderapi.com/api/groups/abc/picture' => Http::response(['success' => true, 'url' => 'https://img'], 200),
+    ]);
+    $result = WasenderApi::getGroupProfilePicture('abc');
+    expect($result['success'])->toBeTrue();
+    expect($result['url'])->toBe('https://img');
+});
+
+test('uploadMediaFile from base64 returns success', function () {
+    Http::fake([
+        'https://www.wasenderapi.com/api/upload' => Http::response(['success' => true, 'id' => 'media123'], 200),
+    ]);
+    $result = WasenderApi::uploadMediaFile('data:image/png;base64,AAA', 'image/png');
+    expect($result['success'])->toBeTrue();
+    expect($result['id'])->toBe('media123');
+});
+
+test('sendPresenceUpdate returns success', function () {
+    Http::fake([
+        'https://www.wasenderapi.com/api/send-presence-update' => Http::response(['success' => true, 'message' => 'Presence sent'], 200),
+    ]);
+    $result = WasenderApi::sendPresenceUpdate('123@s.whatsapp.net', 'composing', 1000);
+    expect($result['success'])->toBeTrue();
+    expect($result['message'])->toBe('Presence sent');
+});
+
+test('sendPresenceUpdate throws on invalid type', function () {
+    WasenderApi::sendPresenceUpdate('123@s.whatsapp.net', 'invalid');
+})->throws(InvalidArgumentException::class);
+
 test('regenerateApiKey returns success', function () {
     Http::fake([
         'https://www.wasenderapi.com/api/whatsapp-sessions/1/regenerate-api-key' => Http::response(['success' => true, 'message' => 'Regenerated'], 200),
@@ -306,3 +398,37 @@ test('webhook dispatches event', function () {
         return $event->payload == $payload;
     });
 }); 
+
+test('webhook dispatches call received event', function () {
+    Event::fake();
+    $payload = [
+        'event' => 'call.received',
+        'data' => ['foo' => 'bar'],
+    ];
+    $secret = 'testsecret';
+    Config::set('wasenderapi.webhook_secret', $secret);
+    $response = $this->postJson('/wasender/webhook', $payload, [
+        'x-webhook-signature' => $secret,
+    ]);
+    $response->assertOk();
+    Event::assertDispatched(CallReceived::class, function ($event) use ($payload) {
+        return $event->payload == $payload;
+    });
+});
+
+test('webhook dispatches generic event when unmapped', function () {
+    Event::fake();
+    $payload = [
+        'event' => 'unknown.event',
+        'data' => ['foo' => 'bar'],
+    ];
+    $secret = 'testsecret';
+    Config::set('wasenderapi.webhook_secret', $secret);
+    $response = $this->postJson('/wasender/webhook', $payload, [
+        'x-webhook-signature' => $secret,
+    ]);
+    $response->assertOk();
+    Event::assertDispatched(WasenderWebhookEvent::class, function ($event) use ($payload) {
+        return $event->event === 'unknown.event' && $event->payload == $payload;
+    });
+});

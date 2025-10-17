@@ -8,9 +8,17 @@ use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use Exception;
+use InvalidArgumentException;
 use WasenderApi\Exceptions\WasenderApiException;
 use WasenderApi\Data\SendTextMessageData;
 use WasenderApi\Data\RetryConfig;
+use WasenderApi\Data\SendImageMessageData;
+use WasenderApi\Data\SendVideoMessageData;
+use WasenderApi\Data\SendDocumentMessageData;
+use WasenderApi\Data\SendAudioMessageData;
+use WasenderApi\Data\SendStickerMessageData;
+use WasenderApi\Data\SendContactMessageData;
+use WasenderApi\Data\SendLocationMessageData;
 
 class WasenderClient
 {
@@ -59,6 +67,28 @@ class WasenderClient
     }
 
     /**
+     * Send a text message with user mentions to a group.
+     *
+     * @param string $to
+     * @param string $text
+     * @param array $mentions
+     * @param array $options
+     * @param RetryConfig|null $retryConfig
+     * @return array
+     * @throws WasenderApiException
+     */
+    public function sendMessageWithMentions(string $to, string $text, array $mentions, array $options = [], ?RetryConfig $retryConfig = null): array
+    {
+        $payload = array_merge($options, [
+            'to' => $to,
+            'text' => $text,
+            'mentions' => $mentions,
+        ]);
+
+        return $this->postWithRetry('/send-message', $payload, false, $retryConfig);
+    }
+
+    /**
      * Send an image message.
      *
      * @param string|SendImageMessageData $to
@@ -71,7 +101,7 @@ class WasenderClient
      */
     public function sendImage($to, $url = null, ?string $caption = null, array $options = [], ?RetryConfig $retryConfig = null): array
     {
-        if ($to instanceof \WasenderApi\Data\SendImageMessageData) {
+    if ($to instanceof SendImageMessageData) {
             $payload = [
                 'to' => $to->to,
                 'imageUrl' => $to->imageUrl,
@@ -101,7 +131,7 @@ class WasenderClient
      */
     public function sendVideo($to, $url = null, ?string $caption = null, array $options = [], ?RetryConfig $retryConfig = null): array
     {
-        if ($to instanceof \WasenderApi\Data\SendVideoMessageData) {
+    if ($to instanceof SendVideoMessageData) {
             $payload = [
                 'to' => $to->to,
                 'videoUrl' => $to->videoUrl,
@@ -124,23 +154,26 @@ class WasenderClient
      * @param string|SendDocumentMessageData $to
      * @param string|null $url
      * @param string|null $caption
+     * @param string|null $fileName
      * @param array $options
      * @param RetryConfig|null $retryConfig
      * @return array
      * @throws WasenderApiException
      */
-    public function sendDocument($to, $url = null, ?string $caption = null, array $options = [], ?RetryConfig $retryConfig = null): array
+    public function sendDocument($to, $url = null, ?string $caption = null, ?string $fileName = null, array $options = [], ?RetryConfig $retryConfig = null): array
     {
-        if ($to instanceof \WasenderApi\Data\SendDocumentMessageData) {
+    if ($to instanceof SendDocumentMessageData) {
             $payload = [
                 'to' => $to->to,
                 'documentUrl' => $to->documentUrl,
+                'fileName' => $to->fileName,
             ];
             if ($to->text) $payload['text'] = $to->text;
         } else {
             $payload = [
                 'to' => $to,
                 'documentUrl' => $url,
+                'fileName' => $fileName,
             ];
             if ($caption) $payload['text'] = $caption;
         }
@@ -160,7 +193,7 @@ class WasenderClient
      */
     public function sendAudio($to, $url = null, array $options = [], ?RetryConfig $retryConfig = null): array
     {
-        if ($to instanceof \WasenderApi\Data\SendAudioMessageData) {
+    if ($to instanceof SendAudioMessageData) {
             $payload = [
                 'to' => $to->to,
                 'audioUrl' => $to->audioUrl,
@@ -187,7 +220,7 @@ class WasenderClient
      */
     public function sendSticker($to, $url = null, array $options = [], ?RetryConfig $retryConfig = null): array
     {
-        if ($to instanceof \WasenderApi\Data\SendStickerMessageData) {
+    if ($to instanceof SendStickerMessageData) {
             $payload = [
                 'to' => $to->to,
                 'stickerUrl' => $to->stickerUrl,
@@ -215,7 +248,7 @@ class WasenderClient
      */
     public function sendContact($to, $contactName = null, $contactPhone = null, array $options = [], ?RetryConfig $retryConfig = null): array
     {
-        if ($to instanceof \WasenderApi\Data\SendContactMessageData) {
+    if ($to instanceof SendContactMessageData) {
             $payload = [
                 'to' => $to->to,
                 'contact' => [
@@ -251,7 +284,7 @@ class WasenderClient
      */
     public function sendLocation($to, $latitude = null, $longitude = null, ?string $name = null, ?string $address = null, array $options = [], ?RetryConfig $retryConfig = null): array
     {
-        if ($to instanceof \WasenderApi\Data\SendLocationMessageData) {
+    if ($to instanceof SendLocationMessageData) {
             $location = [
                 'latitude' => $to->latitude,
                 'longitude' => $to->longitude,
@@ -396,6 +429,29 @@ class WasenderClient
         return $this->post("/groups/{$jid}/participants/remove", $payload);
     }
     /**
+     * Update (promote/demote) group participants.
+     *
+     * @param string $jid
+     * @param string $action
+     * @param array $participants
+     * @return array
+     * @throws WasenderApiException
+     */
+    public function updateGroupParticipants(string $jid, string $action, array $participants): array
+    {
+        $action = strtolower($action);
+        if (!in_array($action, ['promote', 'demote'], true)) {
+            throw new InvalidArgumentException('Action must be either promote or demote.');
+        }
+
+        $payload = [
+            'action' => $action,
+            'participants' => $participants,
+        ];
+
+        return $this->put("/groups/{$jid}/participants/update", $payload);
+    }
+    /**
      * Update group settings.
      *
      * @param string $jid
@@ -406,6 +462,158 @@ class WasenderClient
     public function updateGroupSettings(string $jid, array $settings): array
     {
         return $this->put("/groups/{$jid}/settings", $settings);
+    }
+
+    /**
+     * Retrieve information about a group invite using its code.
+     *
+     * @param string $inviteCode
+     * @return array
+     * @throws WasenderApiException
+     */
+    public function getGroupInviteInfo(string $inviteCode): array
+    {
+        return $this->get("/groups/invite/{$inviteCode}");
+    }
+
+    /**
+     * Leave a group.
+     *
+     * @param string $jid
+     * @return array
+     * @throws WasenderApiException
+     */
+    public function leaveGroup(string $jid): array
+    {
+        return $this->post("/groups/{$jid}/leave");
+    }
+
+    /**
+     * Accept a group invite code.
+     *
+     * @param string $code
+     * @return array
+     * @throws WasenderApiException
+     */
+    public function acceptGroupInvite(string $code): array
+    {
+        return $this->post('/groups/invite/accept', ['code' => $code]);
+    }
+
+    /**
+     * Retrieve a group's invite link.
+     *
+     * @param string $jid
+     * @return array
+     * @throws WasenderApiException
+     */
+    public function getGroupInviteLink(string $jid): array
+    {
+        return $this->get("/groups/{$jid}/invite-link");
+    }
+
+    /**
+     * Retrieve a group's profile picture.
+     *
+     * @param string $jid
+     * @return array
+     * @throws WasenderApiException
+     */
+    public function getGroupProfilePicture(string $jid): array
+    {
+        return $this->get("/groups/{$jid}/picture");
+    }
+
+    /**
+     * Upload a media file either from a local path or base64 string.
+     *
+     * When providing a local file path, you may pass additional multipart fields via $options
+     * (e.g. ['mimetype' => 'image/png']). Set the 'filename' key to override the uploaded filename.
+     *
+     * @param string $fileOrBase64
+     * @param string|null $mimeType
+     * @param array $options
+     * @return array
+     * @throws WasenderApiException
+     */
+    public function uploadMediaFile(string $fileOrBase64, ?string $mimeType = null, array $options = []): array
+    {
+        $url = $this->baseUrl . '/upload';
+        $token = $this->apiKey;
+
+        if (is_file($fileOrBase64)) {
+            $filename = $options['filename'] ?? basename($fileOrBase64);
+            $stream = fopen($fileOrBase64, 'rb');
+            if ($stream === false) {
+                throw new InvalidArgumentException('Unable to open file for upload.');
+            }
+
+            $request = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $token,
+                'User-Agent' => 'wasenderapi-laravel-sdk',
+            ]);
+
+            foreach ($options as $key => $value) {
+                if ($key === 'filename') {
+                    continue;
+                }
+                $request = $request->attach($key, (string)$value);
+            }
+
+            $response = $request->attach('file', $stream, $filename)->post($url);
+
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+        } else {
+            $payload = array_merge($options, ['base64' => $fileOrBase64]);
+            if ($mimeType) {
+                $payload['mimetype'] = $mimeType;
+            }
+
+            $response = Http::withHeaders([
+                'Accept' => 'application/json',
+                'Authorization' => 'Bearer ' . $token,
+                'User-Agent' => 'wasenderapi-laravel-sdk',
+            ])->post($url, $payload);
+        }
+
+        if (!$response->successful()) {
+            throw new WasenderApiException('Wasender API error: ' . $response->body(), $response->status(), $response->json());
+        }
+
+        return $response->json();
+    }
+
+    /**
+     * Send a presence update for a given JID.
+     *
+     * @param string $jid
+     * @param string $type
+     * @param int|null $delayMs
+     * @param array $options
+     * @return array
+     * @throws WasenderApiException
+     */
+    public function sendPresenceUpdate(string $jid, string $type, ?int $delayMs = null, array $options = []): array
+    {
+        $allowed = ['composing', 'recording', 'available', 'unavailable'];
+        $type = strtolower($type);
+
+        if (!in_array($type, $allowed, true)) {
+            throw new InvalidArgumentException('Presence type must be one of: ' . implode(', ', $allowed));
+        }
+
+        $payload = array_merge($options, [
+            'jid' => $jid,
+            'type' => $type,
+        ]);
+
+        if ($delayMs !== null) {
+            $payload['delayMs'] = $delayMs;
+        }
+
+        return $this->post('/send-presence-update', $payload);
     }
 
     // Sessions
@@ -519,7 +727,7 @@ class WasenderClient
      */
     public function getSessionStatus(string $sessionId): array
     {
-        return $this->get("/sessions/{$sessionId}/status", true);
+        return $this->get("/sessions/{$sessionId}/status", false);
     }
 
     // --- HTTP helpers ---
