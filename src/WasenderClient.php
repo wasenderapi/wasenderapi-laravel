@@ -26,9 +26,9 @@ class WasenderClient
     protected string $baseUrl;
     protected ?string $personalAccessToken;
 
-    public function __construct()
+    public function __construct(?string $apiKey = null)
     {
-        $this->apiKey = Config::get('wasenderapi.api_key', env('WASENDERAPI_API_KEY'));
+        $this->apiKey = $apiKey ?? Config::get('wasenderapi.api_key', env('WASENDERAPI_API_KEY'));
         $this->baseUrl = rtrim(Config::get('wasenderapi.base_url', env('WASENDERAPI_BASE_URL', 'https://www.wasenderapi.com/api')), '/');
         $this->personalAccessToken = Config::get('wasenderapi.personal_access_token', env('WASENDERAPI_PERSONAL_ACCESS_TOKEN'));
     }
