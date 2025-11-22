@@ -100,7 +100,7 @@ All message types support both direct parameters and DTOs. All return an array r
 - `sendText($to, $text, $options = [], ?RetryConfig $retry = null)`
 - `sendImage($to, $url, $caption = null, $options = [], ?RetryConfig $retry = null)`
 - `sendVideo($to, $url, $caption = null, $options = [], ?RetryConfig $retry = null)`
-- `sendDocument($to, $url, $filename, $caption = null, $options = [], ?RetryConfig $retry = null)`
+- `sendDocument($to, $url, $fileName, $caption = null, $options = [], ?RetryConfig $retry = null)`
 - `sendAudio($to, $url, $options = [], ?RetryConfig $retry = null)`
 - `sendSticker($to, $url, $options = [], ?RetryConfig $retry = null)`
 - `sendContact($to, $contactName, $contactPhone, $options = [], ?RetryConfig $retry = null)`
@@ -184,7 +184,7 @@ try {
 - `SendTextMessageData($to, $text)`
 - `SendImageMessageData($to, $imageUrl, $text = null)`
 - `SendVideoMessageData($to, $videoUrl, $text = null)`
-- `SendDocumentMessageData($to, $documentUrl, $filename, $text = null)`
+- `SendDocumentMessageData($to, $documentUrl, $fileName, $text = null)`
 - `SendAudioMessageData($to, $audioUrl)`
 - `SendStickerMessageData($to, $stickerUrl)`
 - `SendContactMessageData($to, $contactName, $contactPhone)`
